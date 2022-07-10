@@ -1,0 +1,137 @@
+html
+  head
+
+    link(rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css")
+    style.
+      body { margin-top: 15px; background-color: #47688c; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";}
+      h1 { color: #fff; text-align: center; }
+      h2 { color: #fff; text-align: center; margin-bottom: 30px; }
+      #map { height: 350px; }
+      .hide { display: none; }
+      .pull-right { float: right; }
+      .property-header { display: flex; flex-direction: row; }
+      .property-header-icon { margin-right: 5px; }
+      .property-header-icon > img { height: 65px; }
+      .property-header-content {flex: 1; min-width: 0; }
+      .property { margin-bottom: 12px; margin-left: 8px; }
+      .property-primary { color: #555; font-size: 22px; }
+      .property-variant { color: #555; font-size: 18px; font-style: italic; }
+      .property-user { color: #555; text-align: right; }
+      .property-date { color: #555; text-align: right; }
+      .property-geometry { color: #555; text-align: right; }
+      .properties {margin-top: 8px; }
+      .form-title { color: #555; font-size: 1.2em; margin-top: 16px; font-weight: bold;}
+      .property-title { margin-right: 5px; color: #777; }
+      .attachments { margin-top: 35px; display: flex; flex-direction: row; flex-wrap: wrap; }
+      .attachment { margin-right: 15px; margin-bottom: 15px; }
+      .attachment-image { height: 200px; width: 200px; object-fit: cover }
+      .card { margin: auto; width: 50%; min-width: 600px; background-color: #fff; box-shadow: 0 3px 7px rgba(0,0,0,.35); border-radius: 3px;}
+      .card-content { padding: 10px; }
+
+  body
+    h1 MAGE
+    h2= event.name
+
+    .card
+      .card-content
+        .property-header
+          .property-header-icon
+            img(src="media/icon.png")
+          .property-header-content
+            .pull-right
+              if user
+                .property.property-user
+                  .div= user.displayName
+
+              .property.property-date
+                div= observation.properties.timestamp
+
+              .property.property-geometry
+                span #{center.coordinates[0]},&nbsp
+                span= center.coordinates[1]
+
+            if observation.properties.forms.length && formMap[observation.properties.forms[0].formId].primaryField && observation.properties.forms[0][formMap[observation.properties.forms[0].formId].primaryField]
+              .property.property-primary
+                strong= observation.properties.forms[0][formMap[observation.properties.forms[0].formId].primaryField]
+
+            if observation.properties.forms.length && formMap[observation.properties.forms[0].formId].variantField && observation.properties.forms[0][formMap[observation.properties.forms[0].formId].variantField]
+              .property.property-variant
+                strong= observation.properties.forms[0][formMap[observation.properties.forms[0].formId].variantField]
+
+        #map.hide
+        .form
+          each observationForm in observation.properties.forms
+            .form-title= formMap[observationForm.formId].name
+
+            .properties
+              each property, key in observationForm
+                if property && (key !== 'formId' && key !== 'timestamp' && formMap[observationForm.formId].fieldsByName[key] != null)
+                  .property
+                    strong.property-title #{formMap[observationForm.formId].fieldsByName[key].title}:
+                    div= property
+
+        .attachments
+          each attachment in observation.attachments
+            .attachment
+              if attachment.contentType.indexOf('image/') === 0 || attachment.name.indexOf('.png') !== -1 || attachment.name.indexOf('.jpg') !== -1 || attachment.name.indexOf('.jpeg') !== -1
+                a(href="media/" + attachment.name, target='_blank')
+                  img.attachment-image(src="media/" + attachment.name)
+              if attachment.contentType.indexOf('video/') === 0 || attachment.name.indexOf('.mp4') !== -1
+                video(src="media/" + attachment.name, controls, style={'height': '200px'})
+                  a(href="media/" + attachment.name) download video
+
+  script.
+    var observationEvent = !{JSON.stringify(event)};
+    var formMap = !{JSON.stringify(formMap)};
+    var observation = !{JSON.stringify(observation)};
+    var geometry = !{JSON.stringify(observation.geometry)};
+    function loadMap() {
+      var map = L.map('map');
+      L.DomUtil.removeClass(L.DomUtil.get('map'), 'hide');
+      map.invalidateSize();
+
+      L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      var geojson = L.geoJSON(observation, {
+        style: style(observation)
+      });
+      map.fitBounds(geojson.getBounds());
+      geojson.addTo(map);
+    }
+
+    function style(observation) {
+      var formStyle = null;
+      var primary = null;
+      var variant = null;
+
+      if (observation.properties.forms.length) {
+        var firstForm = observation.properties.forms[0];
+        var form = formMap[firstForm.formId];
+        formStyle = form.style;
+        primary = firstForm[form.primaryField];
+        variant = firstForm[form.variantField];
+      }
+
+      var style = observationEvent.style;
+      if (formStyle) {
+        if (primary && formStyle[primary] && variant && formStyle[primary][variant]) {
+          style = formStyle[primary][variant];
+        } else if (primary && formStyle[primary]) {
+          style = formStyle[primary];
+        } else {
+          style = formStyle;
+        }
+      }
+
+      return {
+        color: style.stroke,
+        fillColor: style.fill,
+        fillOpacity: style.fillOpacity,
+        opacity: style.strokeOpacity,
+        weight: style.strokeWidth
+      };
+    }
+
+  script(type="text/javascript" src="https://unpkg.com/leaflet@1.3.1/dist/leaflet-src.js" onload ="loadMap()")
